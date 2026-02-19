@@ -3,50 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vision Pro AR Clone - Hand Tracking</title>
+    <title>Vision Pro Web Pro Max</title>
     
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js" crossorigin="anonymous"></script>
-    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
 
     <style>
         :root {
-            --glass: rgba(255, 255, 255, 0.1);
-            --blur: blur(25px);
+            --glass: rgba(255, 255, 255, 0.15);
+            --active: #007AFF;
         }
 
         body, html {
             margin: 0; padding: 0; width: 100%; height: 100%;
-            background: #000; overflow: hidden;
-            font-family: -apple-system, system-ui, sans-serif;
+            background: #000; overflow: hidden; color: white;
+            font-family: -apple-system, sans-serif;
         }
 
-        /* Стерео-вид (два экрана) */
-        #main-wrapper {
+        /* Стерео-контейнер */
+        #stereo-container {
             display: flex;
-            width: 200vw; /* Контент дублируется */
+            width: 100vw;
             height: 100vh;
-            position: relative;
         }
 
-        .view-half {
+        .eye-view {
+            position: relative;
             width: 50vw;
             height: 100vh;
-            position: relative;
             overflow: hidden;
-            border-right: 1px solid rgba(255,255,255,0.1);
+            border-right: 1px solid rgba(255,255,255,0.2);
         }
 
-        /* Камера как задний фон */
-        .camera-background {
+        video {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             object-fit: cover;
             z-index: 1;
-            transform: scaleX(-1); /* Зеркально для удобства */
         }
 
-        /* Слой интерфейса */
-        .ui-layer {
+        /* UI Слой */
+        .overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             z-index: 2;
@@ -57,199 +54,219 @@
             pointer-events: none;
         }
 
-        /* Иконки приложений */
-        .grid {
+        .app-grid {
             display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 40px;
+            grid-template-columns: repeat(2, 120px);
+            gap: 30px;
             pointer-events: auto;
         }
 
-        .app-item {
-            width: 100px;
-            height: 100px;
+        .icon {
+            width: 100px; height: 120px;
             background: var(--glass);
-            backdrop-filter: var(--blur);
-            border-radius: 24px;
+            backdrop-filter: blur(20px);
+            border-radius: 25px;
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
-            border: 1px solid rgba(255,255,255,0.2);
-            transition: all 0.2s;
-            color: white;
-            font-size: 12px;
+            border: 1px solid rgba(255,255,255,0.3);
+            transition: 0.3s;
+            text-align: center;
         }
 
-        .app-item.hovered {
-            transform: scale(1.15) translateZ(50px);
-            border-color: #007AFF;
-            box-shadow: 0 0 20px rgba(0,122,255,0.5);
+        .icon.selected {
+            transform: scale(1.2);
+            border-color: var(--active);
+            box-shadow: 0 0 30px var(--active);
         }
 
-        /* Виртуальный курсор (от руки) */
-        .hand-dot {
-            position: absolute;
-            width: 20px;
-            height: 20px;
-            background: white;
-            border-radius: 50%;
-            border: 2px solid #007AFF;
-            z-index: 1000;
-            pointer-events: none;
-            box-shadow: 0 0 15px #007AFF;
-            display: none;
-        }
-
-        /* Окна */
+        /* Окна приложений */
         .window {
             position: absolute;
-            top: 20%; width: 80%; height: 50%;
-            background: rgba(20, 20, 20, 0.8);
-            backdrop-filter: blur(40px);
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            width: 80%; height: 60%;
+            background: rgba(0,0,0,0.8);
+            backdrop-filter: blur(30px);
             border-radius: 30px;
+            border: 1px solid rgba(255,255,255,0.4);
             display: none;
+            flex-direction: column;
             padding: 20px;
-            color: white;
             z-index: 10;
         }
 
-        #debug {
-            position: fixed; top: 10px; left: 10px; color: lime; z-index: 1000; font-size: 10px;
+        .window-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
+        .close-btn { background: red; width: 20px; height: 20px; border-radius: 50%; border: none; }
+
+        /* Курсор пальца */
+        .finger-cursor {
+            position: absolute;
+            width: 25px; height: 25px;
+            border: 3px solid white;
+            border-radius: 50%;
+            background: rgba(0, 122, 255, 0.5);
+            z-index: 1000;
+            pointer-events: none;
+            display: none;
+            transition: transform 0.1s linear;
         }
+
+        #debug { position: fixed; top: 5px; left: 5px; z-index: 500; font-size: 12px; color: #0f0; }
     </style>
 </head>
 <body>
 
-    <div id="debug">Инициализация AI трекинга...</div>
+<div id="debug">Камера: инициализация...</div>
 
-    <div id="main-wrapper">
-        <div class="view-half" id="left-view">
-            <video id="input_video" class="camera-background" playsinline></video>
-            <div class="ui-layer">
-                <div class="grid" id="grid-l">
-                    <div class="app-item" data-id="safari"><span>🌐</span><br>Safari</div>
-                    <div class="app-item" data-id="photos"><span>🖼️</span><br>Photos</div>
-                    <div class="app-item" data-id="music"><span>🎵</span><br>Music</div>
-                </div>
-                <div class="window" id="win-l">Клик зафиксирован! Приложение открыто.</div>
+<div id="stereo-container">
+    <div class="eye-view" id="left-eye">
+        <video id="vid-l" autoplay playsinline></video>
+        <div class="overlay" id="ui-l">
+            <div class="app-grid">
+                <div class="icon" data-app="safari"><span>🌐</span><br>Safari</div>
+                <div class="icon" data-app="music"><span>🎵</span><br>Music</div>
             </div>
-            <div class="hand-dot" id="dot-l"></div>
-        </div>
-
-        <div class="view-half" id="right-view">
-            <video id="input_video_r" class="camera-background" playsinline></video>
-            <div class="ui-layer">
-                <div class="grid" id="grid-r">
-                    <div class="app-item" data-id="safari"><span>🌐</span><br>Safari</div>
-                    <div class="app-item" data-id="photos"><span>🖼️</span><br>Photos</div>
-                    <div class="app-item" data-id="music"><span>🎵</span><br>Music</div>
-                </div>
-                <div class="window" id="win-r">Клик зафиксирован! Приложение открыто.</div>
+            <div class="window" id="win-safari-l">
+                <div class="window-header"><span>🌐 Safari</span><button class="close-btn"></button></div>
+                <div style="font-size: 14px;">Welcome to Spatial Web.</div>
             </div>
-            <div class="hand-dot" id="dot-r"></div>
         </div>
+        <div class="finger-cursor" id="cursor-l"></div>
     </div>
 
-    <script>
-        const videoElement = document.getElementById('input_video');
-        const debug = document.getElementById('debug');
-        
-        let hoveredApp = null;
-        let hoverStartTime = 0;
+    <div class="eye-view" id="right-eye">
+        <video id="vid-r" autoplay playsinline></video>
+        <div class="overlay" id="ui-r">
+            <div class="app-grid">
+                <div class="icon" data-app="safari"><span>🌐</span><br>Safari</div>
+                <div class="icon" data-app="music"><span>🎵</span><br>Music</div>
+            </div>
+            <div class="window" id="win-safari-r">
+                <div class="window-header"><span>🌐 Safari</span><button class="close-btn"></button></div>
+                <div style="font-size: 14px;">Welcome to Spatial Web.</div>
+            </div>
+        </div>
+        <div class="finger-cursor" id="cursor-r"></div>
+    </div>
+</div>
 
-        function onResults(results) {
-            if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
-                const hand = results.multiHandLandmarks[0];
-                // Берем кончик указательного пальца (Landmark 8)
-                const indexFinger = hand[8];
-                
-                // Переводим координаты в пиксели (инвертируем X, так как камера отзеркалена)
-                const x = (1 - indexFinger.x) * window.innerWidth / 2;
-                const y = indexFinger.y * window.innerHeight;
+<script>
+    const debug = document.getElementById('debug');
+    let activeApp = null;
+    let hoverTimer = null;
 
-                updateCursors(x, y);
-                checkInteraction(x, y);
-                debug.innerText = "Рука в кадре. Управляйте указательным пальцем.";
-            } else {
-                debug.innerText = "Рука не найдена. Покажите ладонь камере.";
+    // 1. Настройка камеры (Environment = Задняя)
+    async function setupCamera() {
+        const constraints = {
+            video: { 
+                facingMode: { exact: "environment" }, // Форсим заднюю камеру
+                width: 640, height: 480 
             }
+        };
+
+        try {
+            const stream = await navigator.mediaDevices.getUserMedia(constraints);
+            const vL = document.getElementById('vid-l');
+            const vR = document.getElementById('vid-r');
+            vL.srcObject = stream;
+            // Для второго видео в некоторых браузерах нужно клонировать поток
+            vR.srcObject = stream.clone();
+            return vL;
+        } catch (e) {
+            debug.innerText = "Ошибка камеры: " + e.message;
+            // Если задней нет, пробуем любую
+            const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
+            document.getElementById('vid-l').srcObject = fallbackStream;
+            document.getElementById('vid-r').srcObject = fallbackStream.clone();
+            return document.getElementById('vid-l');
         }
+    }
 
-        function updateCursors(x, y) {
-            const dots = [document.getElementById('dot-l'), document.getElementById('dot-r')];
-            dots.forEach(dot => {
-                dot.style.display = 'block';
-                dot.style.left = x + 'px';
-                dot.style.top = y + 'px';
-            });
+    // 2. Трекинг рук
+    const hands = new Hands({
+        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+    });
+
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7 });
+
+    hands.onResults((results) => {
+        if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
+            const point = results.multiHandLandmarks[0][8]; // Указательный палец
+            // Инвертируем X если нужно, но для задней камеры обычно x = x
+            const x = point.x * (window.innerWidth / 2); 
+            const y = point.y * window.innerHeight;
+
+            updateUI(x, y);
+            debug.innerText = "Рука активна";
+        } else {
+            hideCursors();
+            debug.innerText = "Покажите руку";
         }
+    });
 
-        function checkInteraction(x, y) {
-            // Проверяем попадание курсора в иконки (на левой половине, так как координаты относительны)
-            const elements = document.querySelectorAll('.app-item');
-            let found = false;
+    function updateUI(x, y) {
+        const cL = document.getElementById('cursor-l');
+        const cR = document.getElementById('cursor-r');
+        [cL, cR].forEach(c => {
+            c.style.display = 'block';
+            c.style.left = x + 'px';
+            c.style.top = y + 'px';
+        });
 
-            elements.forEach(el => {
-                const rect = el.getBoundingClientRect();
-                // Так как у нас два экрана, проверяем попадание относительно одного
-                const normalizedX = x; 
-                
-                if (x > rect.left && x < rect.right && y > rect.top && y < rect.bottom) {
-                    found = true;
-                    if (hoveredApp !== el) {
-                        hoveredApp = el;
-                        hoverStartTime = Date.now();
-                        el.classList.add('hovered');
-                    } else {
-                        // Если держим палец 1.5 секунды - "кликая"
-                        if (Date.now() - hoverStartTime > 1500) {
-                            openWindow();
-                        }
-                    }
-                } else {
-                    el.classList.remove('hovered');
+        // Проверка столкновения с иконками
+        const icons = document.querySelectorAll('.icon');
+        let found = false;
+        icons.forEach(icon => {
+            const rect = icon.getBoundingClientRect();
+            // Смещение для правого глаза учитываем внутри CSS или через rect
+            if (x > rect.left && x < rect.right && y > rect.top && y < rect.bottom) {
+                found = true;
+                if (!icon.classList.contains('selected')) {
+                    icon.classList.add('selected');
+                    startHoverAction(icon.dataset.app);
                 }
-            });
-
-            if (!found) hoveredApp = null;
-        }
-
-        function openWindow() {
-            document.getElementById('win-l').style.display = 'block';
-            document.getElementById('win-r').style.display = 'block';
-            setTimeout(() => {
-                document.getElementById('win-l').style.display = 'none';
-                document.getElementById('win-r').style.display = 'none';
-            }, 3000);
-        }
-
-        // Инициализация MediaPipe
-        const hands = new Hands({
-            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
+            } else {
+                icon.classList.remove('selected');
+            }
         });
+        if (!found) cancelHoverAction();
+    }
 
-        hands.setOptions({
-            maxNumHands: 1,
-            modelComplexity: 1,
-            minDetectionConfidence: 0.5,
-            minTrackingConfidence: 0.5
+    function startHoverAction(appName) {
+        if (hoverTimer) return;
+        hoverTimer = setTimeout(() => {
+            openApp(appName);
+        }, 1500); // 1.5 сек на "клик"
+    }
+
+    function cancelHoverAction() {
+        clearTimeout(hoverTimer);
+        hoverTimer = null;
+    }
+
+    function openApp(name) {
+        const wins = [document.getElementById(`win-safari-l`), document.getElementById(`win-safari-r`)];
+        wins.forEach(w => w.style.display = 'flex');
+        debug.innerText = "Открыто: " + name;
+    }
+
+    function hideCursors() {
+        document.getElementById('cursor-l').style.display = 'none';
+        document.getElementById('cursor-r').style.display = 'none';
+        cancelHoverAction();
+    }
+
+    // Запуск
+    setupCamera().then(video => {
+        const camera = new Camera(video, {
+            onFrame: async () => { await hands.send({image: video}); },
+            width: 640, height: 480
         });
-
-        hands.onResults(onResults);
-
-        const camera = new Camera(videoElement, {
-            onFrame: async () => {
-                await hands.send({image: videoElement});
-                // Дублируем поток на второй глаз
-                document.getElementById('input_video_r').srcObject = videoElement.srcObject;
-            },
-            width: 640,
-            height: 480
-        });
-        
         camera.start();
+    });
 
-    </script>
+</script>
 </body>
 </html>
