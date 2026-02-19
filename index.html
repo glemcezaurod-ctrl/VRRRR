@@ -3,270 +3,179 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Vision Pro Web Pro Max</title>
-    
+    <title>Apple Vision Pro Web</title>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/hands/hands.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-
     <style>
-        :root {
-            --glass: rgba(255, 255, 255, 0.15);
-            --active: #007AFF;
-        }
+        body, html { margin: 0; padding: 0; width: 100%; height: 100%; background: #000; overflow: hidden; color: white; font-family: -apple-system, sans-serif; }
+        #stereo-wrapper { display: flex; width: 100vw; height: 100vh; }
+        .eye { position: relative; width: 50vw; height: 100vh; overflow: hidden; border-right: 1px solid rgba(255,255,255,0.1); }
+        
+        canvas.bg-video { position: absolute; top: 0; left: 0; width: 100%; height: 100%; object-fit: cover; z-index: 1; }
+        
+        .ui-layer { position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 2; pointer-events: none; display: flex; align-items: center; justify-content: center; }
+        
+        /* Сетка приложений */
+        .home-screen { display: grid; grid-template-columns: repeat(2, 1fr); gap: 20px; pointer-events: auto; }
+        .app-btn { width: 80px; height: 80px; background: rgba(255,255,255,0.15); backdrop-filter: blur(15px); border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); display: flex; align-items: center; justify-content: center; font-size: 30px; transition: 0.2s; position: relative; }
+        .app-btn.highlight { transform: scale(1.2); border-color: #007AFF; box-shadow: 0 0 20px #007AFF; }
 
-        body, html {
-            margin: 0; padding: 0; width: 100%; height: 100%;
-            background: #000; overflow: hidden; color: white;
-            font-family: -apple-system, sans-serif;
-        }
+        /* Окно приложения */
+        .window { position: absolute; width: 80%; height: 60%; background: rgba(20,20,20,0.9); backdrop-filter: blur(25px); border-radius: 25px; border: 1px solid rgba(255,255,255,0.2); display: none; flex-direction: column; padding: 15px; pointer-events: auto; }
+        .window-nav { display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; }
+        .close-area { width: 30px; height: 30px; background: #ff453a; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold; }
+        .close-area.target { transform: scale(1.3); box-shadow: 0 0 15px #ff453a; }
 
-        /* Стерео-контейнер */
-        #stereo-container {
-            display: flex;
-            width: 100vw;
-            height: 100vh;
-        }
-
-        .eye-view {
-            position: relative;
-            width: 50vw;
-            height: 100vh;
-            overflow: hidden;
-            border-right: 1px solid rgba(255,255,255,0.2);
-        }
-
-        video {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            object-fit: cover;
-            z-index: 1;
-        }
-
-        /* UI Слой */
-        .overlay {
-            position: absolute;
-            top: 0; left: 0; width: 100%; height: 100%;
-            z-index: 2;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            pointer-events: none;
-        }
-
-        .app-grid {
-            display: grid;
-            grid-template-columns: repeat(2, 120px);
-            gap: 30px;
-            pointer-events: auto;
-        }
-
-        .icon {
-            width: 100px; height: 120px;
-            background: var(--glass);
-            backdrop-filter: blur(20px);
-            border-radius: 25px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            justify-content: center;
-            border: 1px solid rgba(255,255,255,0.3);
-            transition: 0.3s;
-            text-align: center;
-        }
-
-        .icon.selected {
-            transform: scale(1.2);
-            border-color: var(--active);
-            box-shadow: 0 0 30px var(--active);
-        }
-
-        /* Окна приложений */
-        .window {
-            position: absolute;
-            top: 50%; left: 50%;
-            transform: translate(-50%, -50%);
-            width: 80%; height: 60%;
-            background: rgba(0,0,0,0.8);
-            backdrop-filter: blur(30px);
-            border-radius: 30px;
-            border: 1px solid rgba(255,255,255,0.4);
-            display: none;
-            flex-direction: column;
-            padding: 20px;
-            z-index: 10;
-        }
-
-        .window-header { display: flex; justify-content: space-between; margin-bottom: 15px; }
-        .close-btn { background: red; width: 20px; height: 20px; border-radius: 50%; border: none; }
-
-        /* Курсор пальца */
-        .finger-cursor {
-            position: absolute;
-            width: 25px; height: 25px;
-            border: 3px solid white;
-            border-radius: 50%;
-            background: rgba(0, 122, 255, 0.5);
-            z-index: 1000;
-            pointer-events: none;
-            display: none;
-            transition: transform 0.1s linear;
-        }
-
-        #debug { position: fixed; top: 5px; left: 5px; z-index: 500; font-size: 12px; color: #0f0; }
+        /* Курсор */
+        .cursor { position: absolute; width: 20px; height: 20px; background: rgba(255,255,255,0.5); border: 2px solid #007AFF; border-radius: 50%; z-index: 100; pointer-events: none; display: none; transform: translate(-50%, -50%); }
+        
+        #status { position: fixed; top: 10px; left: 10px; z-index: 1000; font-size: 10px; color: #0f0; background: rgba(0,0,0,0.5); padding: 5px; }
+        video#raw-video { display: none; }
     </style>
 </head>
 <body>
 
-<div id="debug">Камера: инициализация...</div>
+<div id="status">Инициализация систем...</div>
+<video id="raw-video" autoplay playsinline></video>
 
-<div id="stereo-container">
-    <div class="eye-view" id="left-eye">
-        <video id="vid-l" autoplay playsinline></video>
-        <div class="overlay" id="ui-l">
-            <div class="app-grid">
-                <div class="icon" data-app="safari"><span>🌐</span><br>Safari</div>
-                <div class="icon" data-app="music"><span>🎵</span><br>Music</div>
+<div id="stereo-wrapper">
+    <div class="eye" id="left-eye">
+        <canvas class="bg-video" id="can-l"></canvas>
+        <div class="ui-layer">
+            <div class="home-screen" id="home-l">
+                <div class="app-btn" data-id="web">🌐</div>
+                <div class="app-btn" data-id="music">🎵</div>
             </div>
-            <div class="window" id="win-safari-l">
-                <div class="window-header"><span>🌐 Safari</span><button class="close-btn"></button></div>
-                <div style="font-size: 14px;">Welcome to Spatial Web.</div>
+            <div class="window" id="win-l">
+                <div class="window-nav"><span>Spatial Browser</span> <div class="close-area">✕</div></div>
+                <div style="padding: 10px;">Контент загружен. Сфокусируйтесь на ✕ для закрытия.</div>
             </div>
         </div>
-        <div class="finger-cursor" id="cursor-l"></div>
+        <div class="cursor" id="cur-l"></div>
     </div>
 
-    <div class="eye-view" id="right-eye">
-        <video id="vid-r" autoplay playsinline></video>
-        <div class="overlay" id="ui-r">
-            <div class="app-grid">
-                <div class="icon" data-app="safari"><span>🌐</span><br>Safari</div>
-                <div class="icon" data-app="music"><span>🎵</span><br>Music</div>
+    <div class="eye" id="right-eye">
+        <canvas class="bg-video" id="can-r"></canvas>
+        <div class="ui-layer">
+            <div class="home-screen" id="home-r">
+                <div class="app-btn" data-id="web">🌐</div>
+                <div class="app-btn" data-id="music">🎵</div>
             </div>
-            <div class="window" id="win-safari-r">
-                <div class="window-header"><span>🌐 Safari</span><button class="close-btn"></button></div>
-                <div style="font-size: 14px;">Welcome to Spatial Web.</div>
+            <div class="window" id="win-r">
+                <div class="window-nav"><span>Spatial Browser</span> <div class="close-area">✕</div></div>
+                <div style="padding: 10px;">Контент загружен. Сфокусируйтесь на ✕ для закрытия.</div>
             </div>
         </div>
-        <div class="finger-cursor" id="cursor-r"></div>
+        <div class="cursor" id="cur-r"></div>
     </div>
 </div>
 
 <script>
-    const debug = document.getElementById('debug');
+    const video = document.getElementById('raw-video');
+    const status = document.getElementById('status');
     let activeApp = null;
-    let hoverTimer = null;
+    let dwellTimer = null;
 
-    // 1. Настройка камеры (Environment = Задняя)
-    async function setupCamera() {
-        const constraints = {
-            video: { 
-                facingMode: { exact: "environment" }, // Форсим заднюю камеру
-                width: 640, height: 480 
-            }
-        };
-
+    // 1. Умный поиск задней камеры
+    async function startCamera() {
         try {
-            const stream = await navigator.mediaDevices.getUserMedia(constraints);
-            const vL = document.getElementById('vid-l');
-            const vR = document.getElementById('vid-r');
-            vL.srcObject = stream;
-            // Для второго видео в некоторых браузерах нужно клонировать поток
-            vR.srcObject = stream.clone();
-            return vL;
+            const devices = await navigator.mediaDevices.enumerateDevices();
+            const videoDevices = devices.filter(d => d.kind === 'videoinput');
+            // Ищем камеру со словом "back" или выбираем последнюю в списке (обычно это основная)
+            const backCam = videoDevices.find(d => d.label.toLowerCase().includes('back')) || videoDevices[videoDevices.length - 1];
+            
+            const stream = await navigator.mediaDevices.getUserMedia({
+                video: { deviceId: backCam ? { exact: backCam.deviceId } : undefined, width: 1280, height: 720 }
+            });
+            video.srcObject = stream;
+            status.innerText = "Камера: OK (Back)";
         } catch (e) {
-            debug.innerText = "Ошибка камеры: " + e.message;
-            // Если задней нет, пробуем любую
-            const fallbackStream = await navigator.mediaDevices.getUserMedia({ video: true });
-            document.getElementById('vid-l').srcObject = fallbackStream;
-            document.getElementById('vid-r').srcObject = fallbackStream.clone();
-            return document.getElementById('vid-l');
+            status.innerText = "Ошибка камеры: " + e.message;
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+            video.srcObject = stream;
         }
     }
 
-    // 2. Трекинг рук
-    const hands = new Hands({
-        locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}`
-    });
+    // 2. Отрисовка на два глаза через Canvas
+    const canL = document.getElementById('can-l');
+    const canR = document.getElementById('can-r');
+    const ctxL = canL.getContext('2d');
+    const ctxR = canR.getContext('2d');
 
-    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.7 });
+    function draw() {
+        if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            canL.width = canR.width = video.videoWidth / 2;
+            canL.height = canR.height = video.videoHeight;
+            ctxL.drawImage(video, 0, 0, canL.width, canL.height);
+            ctxR.drawImage(video, 0, 0, canR.width, canR.height);
+        }
+        requestAnimationFrame(draw);
+    }
 
-    hands.onResults((results) => {
+    // 3. AI Трекинг рук
+    const hands = new Hands({ locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/hands/${file}` });
+    hands.setOptions({ maxNumHands: 1, modelComplexity: 1, minDetectionConfidence: 0.6 });
+    hands.onResults(onResults);
+
+    function onResults(results) {
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             const point = results.multiHandLandmarks[0][8]; // Указательный палец
-            // Инвертируем X если нужно, но для задней камеры обычно x = x
-            const x = point.x * (window.innerWidth / 2); 
+            const x = point.x * window.innerWidth / 2;
             const y = point.y * window.innerHeight;
-
-            updateUI(x, y);
-            debug.innerText = "Рука активна";
+            updateInteraction(x, y);
         } else {
-            hideCursors();
-            debug.innerText = "Покажите руку";
+            document.getElementById('cur-l').style.display = 'none';
+            document.getElementById('cur-r').style.display = 'none';
         }
-    });
+    }
 
-    function updateUI(x, y) {
-        const cL = document.getElementById('cursor-l');
-        const cR = document.getElementById('cursor-r');
-        [cL, cR].forEach(c => {
-            c.style.display = 'block';
-            c.style.left = x + 'px';
-            c.style.top = y + 'px';
-        });
+    function updateInteraction(x, y) {
+        const cursors = [document.getElementById('cur-l'), document.getElementById('cur-r')];
+        cursors.forEach(c => { c.style.display = 'block'; c.style.left = x + 'px'; c.style.top = y + 'px'; });
 
-        // Проверка столкновения с иконками
-        const icons = document.querySelectorAll('.icon');
-        let found = false;
-        icons.forEach(icon => {
-            const rect = icon.getBoundingClientRect();
-            // Смещение для правого глаза учитываем внутри CSS или через rect
-            if (x > rect.left && x < rect.right && y > rect.top && y < rect.bottom) {
-                found = true;
-                if (!icon.classList.contains('selected')) {
-                    icon.classList.add('selected');
-                    startHoverAction(icon.dataset.app);
+        // Логика клика/закрытия
+        const targets = document.querySelectorAll('.app-btn, .close-area');
+        let hit = false;
+
+        targets.forEach(t => {
+            const r = t.getBoundingClientRect();
+            if (x > r.left && x < r.right && y > r.top && y < r.bottom) {
+                hit = true;
+                t.classList.add('highlight', 'target');
+                if (!dwellTimer) {
+                    dwellTimer = setTimeout(() => {
+                        if (t.classList.contains('close-area')) closeApp();
+                        else openApp(t.dataset.id);
+                    }, 1200);
                 }
             } else {
-                icon.classList.remove('selected');
+                t.classList.remove('highlight', 'target');
             }
         });
-        if (!found) cancelHoverAction();
+
+        if (!hit) { clearTimeout(dwellTimer); dwellTimer = null; }
     }
 
-    function startHoverAction(appName) {
-        if (hoverTimer) return;
-        hoverTimer = setTimeout(() => {
-            openApp(appName);
-        }, 1500); // 1.5 сек на "клик"
+    function openApp(id) {
+        activeApp = id;
+        document.querySelectorAll('.home-screen').forEach(h => h.style.display = 'none');
+        document.querySelectorAll('.window').forEach(w => w.style.display = 'flex');
+        status.innerText = "Приложение открыто: " + id;
     }
 
-    function cancelHoverAction() {
-        clearTimeout(hoverTimer);
-        hoverTimer = null;
-    }
-
-    function openApp(name) {
-        const wins = [document.getElementById(`win-safari-l`), document.getElementById(`win-safari-r`)];
-        wins.forEach(w => w.style.display = 'flex');
-        debug.innerText = "Открыто: " + name;
-    }
-
-    function hideCursors() {
-        document.getElementById('cursor-l').style.display = 'none';
-        document.getElementById('cursor-r').style.display = 'none';
-        cancelHoverAction();
+    function closeApp() {
+        activeApp = null;
+        document.querySelectorAll('.home-screen').forEach(h => h.style.display = 'grid');
+        document.querySelectorAll('.window').forEach(w => w.style.display = 'none');
+        status.innerText = "Приложения закрыты";
     }
 
     // Запуск
-    setupCamera().then(video => {
-        const camera = new Camera(video, {
-            onFrame: async () => { await hands.send({image: video}); },
-            width: 640, height: 480
-        });
-        camera.start();
+    startCamera().then(() => {
+        const cam = new Camera(video, { onFrame: async () => { await hands.send({image: video}); } });
+        cam.start();
+        draw();
     });
-
 </script>
 </body>
 </html>
