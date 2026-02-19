@@ -1,0 +1,838 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Apple Vision Pro для iPhone - Две руки</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-touch-callout: none;
+        }
+
+        body {
+            position: fixed;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            font-family: -apple-system, 'SF Pro Display', 'Helvetica Neue', sans-serif;
+            background: black;
+        }
+
+        #ar-container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+        }
+
+        /* Задняя камера */
+        #rear-camera {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            z-index: 1;
+        }
+
+        /* AR интерфейс */
+        #ar-interface {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 2;
+            pointer-events: none;
+        }
+
+        /* Статус бар */
+        .status-bar {
+            position: absolute;
+            top: 50px;
+            left: 0;
+            width: 100%;
+            padding: 0 30px;
+            display: flex;
+            justify-content: space-between;
+            color: white;
+            font-size: 17px;
+            font-weight: 600;
+            text-shadow: 0 2px 20px rgba(0,0,0,0.5);
+            z-index: 100;
+            pointer-events: none;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            background: rgba(0,0,0,0.2);
+            height: 60px;
+            align-items: center;
+        }
+
+        .time {
+            background: rgba(255,255,255,0.15);
+            padding: 8px 20px;
+            border-radius: 30px;
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+        }
+
+        /* Главный экран с приложениями */
+        .home-screen {
+            position: absolute;
+            bottom: 120px;
+            left: 0;
+            width: 100%;
+            display: flex;
+            justify-content: center;
+            gap: 25px;
+            padding: 20px;
+            z-index: 200;
+            pointer-events: none;
+            perspective: 2000px;
+        }
+
+        .app-icon {
+            width: 140px;
+            height: 160px;
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            border-radius: 40px;
+            border: 1.5px solid rgba(255,255,255,0.3);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            gap: 15px;
+            color: white;
+            font-size: 16px;
+            font-weight: 500;
+            pointer-events: auto;
+            cursor: none;
+            transition: all 0.2s ease;
+            box-shadow: 0 25px 50px rgba(0,0,0,0.5);
+            transform: translateZ(0) scale(1);
+            will-change: transform;
+        }
+
+        .app-icon:hover {
+            transform: translateY(-10px) scale(1.05);
+            background: rgba(255, 255, 255, 0.25);
+            border-color: rgba(255,255,255,0.8);
+            box-shadow: 0 35px 70px rgba(0,0,0,0.6);
+        }
+
+        .app-icon.active {
+            transform: scale(1.1);
+            border-color: #0a84ff;
+            box-shadow: 0 0 40px #0a84ff;
+        }
+
+        .app-icon.pinch-active {
+            transform: scale(0.95);
+            background: rgba(10, 132, 255, 0.4);
+            border-color: #0a84ff;
+        }
+
+        .app-emoji {
+            font-size: 60px;
+            filter: drop-shadow(0 10px 20px rgba(0,0,0,0.3));
+        }
+
+        /* Док-панель */
+        .dock {
+            position: absolute;
+            bottom: 40px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 20px;
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(40px);
+            -webkit-backdrop-filter: blur(40px);
+            padding: 15px 30px;
+            border-radius: 60px;
+            border: 1px solid rgba(255,255,255,0.2);
+            z-index: 250;
+            pointer-events: auto;
+        }
+
+        .dock-icon {
+            width: 60px;
+            height: 60px;
+            background: rgba(255,255,255,0.2);
+            border-radius: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 30px;
+            pointer-events: auto;
+            cursor: none;
+            transition: all 0.2s;
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .dock-icon:hover {
+            background: rgba(255,255,255,0.4);
+            transform: translateY(-5px);
+        }
+
+        .dock-icon.active {
+            border-color: #0a84ff;
+            box-shadow: 0 0 20px #0a84ff;
+        }
+
+        /* Окна приложений */
+        .app-window {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            width: min(700px, 90%);
+            height: min(500px, 70%);
+            background: rgba(20, 20, 30, 0.8);
+            backdrop-filter: blur(50px);
+            -webkit-backdrop-filter: blur(50px);
+            border-radius: 60px;
+            border: 1px solid rgba(255,255,255,0.2);
+            color: white;
+            pointer-events: auto;
+            display: none;
+            z-index: 300;
+            box-shadow: 0 50px 100px rgba(0,0,0,0.7);
+            animation: windowOpen 0.3s ease;
+        }
+
+        @keyframes windowOpen {
+            from {
+                opacity: 0;
+                transform: translate(-50%, -50%) scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: translate(-50%, -50%) scale(1);
+            }
+        }
+
+        .window-header {
+            padding: 25px 30px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            font-size: 24px;
+        }
+
+        .window-content {
+            padding: 25px 30px;
+            height: calc(100% - 90px);
+            overflow-y: auto;
+        }
+
+        .close-btn {
+            background: rgba(255,255,255,0.2);
+            border: none;
+            color: white;
+            width: 40px;
+            height: 40px;
+            border-radius: 20px;
+            cursor: pointer;
+            font-size: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        /* Курсоры для двух рук */
+        .hand-cursor {
+            position: absolute;
+            width: 50px;
+            height: 50px;
+            border: 3px solid #0a84ff;
+            border-radius: 50%;
+            pointer-events: none;
+            z-index: 1000;
+            transform: translate(-50%, -50%);
+            transition: width 0.1s, height 0.1s, background-color 0.1s, border-color 0.1s;
+            display: none;
+            box-shadow: 0 0 20px rgba(10, 132, 255, 0.5);
+            backdrop-filter: blur(5px);
+            will-change: left, top;
+        }
+
+        .hand-cursor.left-hand {
+            border-color: #ff9f0a;
+            box-shadow: 0 0 20px rgba(255, 159, 10, 0.5);
+        }
+
+        .hand-cursor.right-hand {
+            border-color: #0a84ff;
+        }
+
+        .hand-cursor.pinching {
+            width: 40px;
+            height: 40px;
+            background-color: rgba(255, 255, 255, 0.3);
+            border-width: 4px;
+        }
+
+        .hand-cursor.left-hand.pinching {
+            background-color: rgba(255, 159, 10, 0.3);
+        }
+
+        .hand-cursor.right-hand.pinching {
+            background-color: rgba(10, 132, 255, 0.3);
+        }
+
+        /* Индикаторы рук */
+        #hands-status {
+            position: absolute;
+            bottom: 200px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 15px;
+            border-radius: 30px;
+            color: white;
+            font-size: 14px;
+            z-index: 500;
+            border: 1px solid rgba(255,255,255,0.2);
+            pointer-events: none;
+        }
+
+        .hand-indicator {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin: 5px 0;
+        }
+
+        .hand-dot {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background: #666;
+        }
+
+        .hand-dot.active {
+            background: #0a84ff;
+            box-shadow: 0 0 15px #0a84ff;
+        }
+
+        .hand-dot.left.active {
+            background: #ff9f0a;
+            box-shadow: 0 0 15px #ff9f0a;
+        }
+
+        /* Гироскоп индикатор */
+        #gyro-status {
+            position: absolute;
+            top: 120px;
+            right: 20px;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            padding: 10px 20px;
+            border-radius: 30px;
+            color: white;
+            font-size: 14px;
+            z-index: 500;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        /* Виджеты */
+        .widgets {
+            position: absolute;
+            top: 120px;
+            left: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            z-index: 150;
+            pointer-events: none;
+        }
+
+        .widget {
+            background: rgba(0,0,0,0.3);
+            backdrop-filter: blur(30px);
+            -webkit-backdrop-filter: blur(30px);
+            padding: 20px;
+            border-radius: 30px;
+            color: white;
+            min-width: 250px;
+            border: 1px solid rgba(255,255,255,0.2);
+            pointer-events: auto;
+            cursor: none;
+        }
+
+        /* AR объекты */
+        .ar-object {
+            position: absolute;
+            width: 100px;
+            height: 100px;
+            background: linear-gradient(135deg, #ff2d55, #0a84ff);
+            border-radius: 30px;
+            transform-style: preserve-3d;
+            animation: float 3s infinite;
+            pointer-events: auto;
+            cursor: none;
+            z-index: 50;
+        }
+
+        @keyframes float {
+            0%, 100% { transform: translateY(0) rotate(0deg); }
+            50% { transform: translateY(-20px) rotate(5deg); }
+        }
+    </style>
+</head>
+<body>
+    <div id="ar-container">
+        <!-- Задняя камера -->
+        <video id="rear-camera" autoplay playsinline></video>
+        
+        <!-- AR интерфейс -->
+        <div id="ar-interface">
+            <!-- Статус бар -->
+            <div class="status-bar">
+                <span class="time" id="current-time">10:30</span>
+                <span>📶 5G • 🔋 87% • 🕶️ Vision Pro</span>
+            </div>
+
+            <!-- Виджеты -->
+            <div class="widgets">
+                <div class="widget" id="weather-widget">
+                    <h3>☀️ Погода</h3>
+                    <p>Москва, 24°C</p>
+                </div>
+                <div class="widget" id="calendar-widget">
+                    <h3>📅 Календарь</h3>
+                    <p>Встреча в 15:00</p>
+                </div>
+            </div>
+
+            <!-- Главный экран -->
+            <div class="home-screen" id="home-screen">
+                <div class="app-icon" data-app="photos" id="app-photos">
+                    <span class="app-emoji">📸</span>
+                    <span>Фото</span>
+                </div>
+                <div class="app-icon" data-app="safari" id="app-safari">
+                    <span class="app-emoji">🌐</span>
+                    <span>Safari</span>
+                </div>
+                <div class="app-icon" data-app="music" id="app-music">
+                    <span class="app-emoji">🎵</span>
+                    <span>Музыка</span>
+                </div>
+                <div class="app-icon" data-app="ar-world" id="app-ar-world">
+                    <span class="app-emoji">🕶️</span>
+                    <span>AR World</span>
+                </div>
+            </div>
+
+            <!-- Док -->
+            <div class="dock" id="dock">
+                <div class="dock-icon" data-app="photos">📸</div>
+                <div class="dock-icon" data-app="safari">🌐</div>
+                <div class="dock-icon" data-app="music">🎵</div>
+                <div class="dock-icon" data-app="ar-world">🕶️</div>
+                <div class="dock-icon" data-app="settings">⚙️</div>
+            </div>
+
+            <!-- AR объекты -->
+            <div class="ar-object" id="ar-cube" style="left: 30%; top: 30%;"></div>
+            <div class="ar-object" id="ar-sphere" style="left: 70%; top: 60%; background: linear-gradient(135deg, #30d158, #64d2ff);"></div>
+
+            <!-- Окна приложений -->
+            <div class="app-window" id="window-photos">
+                <div class="window-header">
+                    <h2>📸 Фото</h2>
+                    <button class="close-btn" onclick="closeApp('photos')">✕</button>
+                </div>
+                <div class="window-content">
+                    <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 15px;">
+                        <img src="https://picsum.photos/200/200?random=1" style="width: 100%; border-radius: 20px;">
+                        <img src="https://picsum.photos/200/200?random=2" style="width: 100%; border-radius: 20px;">
+                        <img src="https://picsum.photos/200/200?random=3" style="width: 100%; border-radius: 20px;">
+                        <img src="https://picsum.photos/200/200?random=4" style="width: 100%; border-radius: 20px;">
+                        <img src="https://picsum.photos/200/200?random=5" style="width: 100%; border-radius: 20px;">
+                        <img src="https://picsum.photos/200/200?random=6" style="width: 100%; border-radius: 20px;">
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-window" id="window-safari">
+                <div class="window-header">
+                    <h2>🌐 Safari</h2>
+                    <button class="close-btn" onclick="closeApp('safari')">✕</button>
+                </div>
+                <div class="window-content">
+                    <iframe src="https://www.apple.com" style="width: 100%; height: 100%; border: none; border-radius: 30px;"></iframe>
+                </div>
+            </div>
+
+            <div class="app-window" id="window-music">
+                <div class="window-header">
+                    <h2>🎵 Музыка</h2>
+                    <button class="close-btn" onclick="closeApp('music')">✕</button>
+                </div>
+                <div class="window-content">
+                    <div style="text-align: center;">
+                        <div style="font-size: 100px; margin: 30px;">🎵</div>
+                        <h3>Сейчас играет</h3>
+                        <p style="font-size: 20px; margin: 15px;">Название трека - Исполнитель</p>
+                        <div style="display: flex; gap: 30px; justify-content: center; margin-top: 30px;">
+                            <button style="background: none; border: none; color: white; font-size: 40px;">⏮️</button>
+                            <button style="background: none; border: none; color: white; font-size: 60px;">▶️</button>
+                            <button style="background: none; border: none; color: white; font-size: 40px;">⏭️</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-window" id="window-ar-world">
+                <div class="window-header">
+                    <h2>🕶️ AR World</h2>
+                    <button class="close-btn" onclick="closeApp('ar-world')">✕</button>
+                </div>
+                <div class="window-content">
+                    <div style="text-align: center;">
+                        <p>Интерактивные AR объекты</p>
+                        <p>Используйте две руки для взаимодействия</p>
+                    </div>
+                </div>
+            </div>
+
+            <div class="app-window" id="window-settings">
+                <div class="window-header">
+                    <h2>⚙️ Настройки</h2>
+                    <button class="close-btn" onclick="closeApp('settings')">✕</button>
+                </div>
+                <div class="window-content">
+                    <p>📷 Камера: Задняя (активна)</p>
+                    <p>🖐️ Трекинг рук: 2 руки</p>
+                    <p>🤏 Жест щипок: Активен</p>
+                    <p>🔄 Гироскоп: Работает</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Курсоры для двух рук -->
+        <div class="hand-cursor left-hand" id="left-hand-cursor"></div>
+        <div class="hand-cursor right-hand" id="right-hand-cursor"></div>
+
+        <!-- Индикаторы -->
+        <div id="hands-status">
+            <div class="hand-indicator">
+                <span class="hand-dot left" id="left-hand-dot"></span>
+                <span>Левая рука</span>
+            </div>
+            <div class="hand-indicator">
+                <span class="hand-dot right" id="right-hand-dot"></span>
+                <span>Правая рука</span>
+            </div>
+        </div>
+
+        <div id="gyro-status">
+            🌀 Гироскоп: <span id="gyro-values">0° 0° 0°</span>
+        </div>
+    </div>
+
+    <script>
+        // Конфигурация
+        const CONFIG = {
+            pinchThreshold: 30,
+            smoothingFactor: 0.3,
+            debug: true
+        };
+
+        // Состояние рук
+        let hands = {
+            left: { x: 0, y: 0, pinching: false, active: false },
+            right: { x: 0, y: 0, pinching: false, active: false }
+        };
+
+        let currentApp = null;
+        let gyroData = { alpha: 0, beta: 0, gamma: 0 };
+
+        // Элементы
+        const leftCursor = document.getElementById('left-hand-cursor');
+        const rightCursor = document.getElementById('right-hand-cursor');
+        const leftDot = document.getElementById('left-hand-dot');
+        const rightDot = document.getElementById('right-hand-dot');
+
+        // Инициализация камеры (задняя)
+        async function initCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ 
+                    video: { 
+                        facingMode: 'environment', // Задняя камера
+                        width: { ideal: 1920 },
+                        height: { ideal: 1080 }
+                    } 
+                });
+                
+                const video = document.getElementById('rear-camera');
+                video.srcObject = stream;
+                video.play();
+                
+                console.log('✅ Задняя камера активирована');
+            } catch (err) {
+                console.error('❌ Ошибка камеры:', err);
+                alert('Не удалось получить доступ к задней камере');
+            }
+        }
+
+        // Инициализация гироскопа
+        function initGyroscope() {
+            if (window.DeviceOrientationEvent) {
+                window.addEventListener('deviceorientation', function(event) {
+                    gyroData = {
+                        alpha: Math.round(event.alpha || 0),
+                        beta: Math.round(event.beta || 0),
+                        gamma: Math.round(event.gamma || 0)
+                    };
+                    
+                    document.getElementById('gyro-values').textContent = 
+                        `${gyroData.beta}° ${gyroData.gamma}° ${gyroData.alpha}°`;
+                });
+            }
+        }
+
+        // Трекинг двух рук через касания
+        function initHandTracking() {
+            document.addEventListener('touchstart', (e) => {
+                e.preventDefault();
+                handleTouches(e.touches);
+            });
+
+            document.addEventListener('touchmove', (e) => {
+                e.preventDefault();
+                handleTouches(e.touches);
+            });
+
+            document.addEventListener('touchend', (e) => {
+                e.preventDefault();
+                handleTouches(e.touches);
+            });
+
+            function handleTouches(touches) {
+                // Сброс состояния
+                hands.left.active = false;
+                hands.right.active = false;
+
+                // Обновление позиций рук
+                for (let i = 0; i < Math.min(touches.length, 2); i++) {
+                    const touch = touches[i];
+                    const hand = i === 0 ? 'left' : 'right';
+                    
+                    hands[hand].active = true;
+                    hands[hand].x = touch.clientX;
+                    hands[hand].y = touch.clientY;
+                }
+
+                // Обновление курсоров
+                updateCursors();
+            }
+        }
+
+        // Определение жеста "щипок" (эмуляция через долгое нажатие)
+        function initPinchDetection() {
+            let pinchTimers = {
+                left: null,
+                right: null
+            };
+
+            document.addEventListener('touchstart', (e) => {
+                for (let i = 0; i < e.touches.length; i++) {
+                    const touch = e.touches[i];
+                    const hand = i === 0 ? 'left' : 'right';
+                    
+                    clearTimeout(pinchTimers[hand]);
+                    pinchTimers[hand] = setTimeout(() => {
+                        if (hands[hand].active) {
+                            hands[hand].pinching = true;
+                            updateCursors();
+                            
+                            // Активация элемента под пальцем
+                            const element = document.elementFromPoint(hands[hand].x, hands[hand].y);
+                            if (element && element.closest) {
+                                const clickable = element.closest('[data-app], .close-btn, .widget');
+                                if (clickable) {
+                                    if (clickable.hasAttribute('data-app')) {
+                                        openApp(clickable.getAttribute('data-app'));
+                                    } else if (clickable.classList.contains('close-btn')) {
+                                        clickable.click();
+                                    }
+                                }
+                            }
+                        }
+                    }, 300);
+                }
+            });
+
+            document.addEventListener('touchend', (e) => {
+                for (let i = 0; i < 2; i++) {
+                    const hand = i === 0 ? 'left' : 'right';
+                    clearTimeout(pinchTimers[hand]);
+                    hands[hand].pinching = false;
+                }
+                updateCursors();
+            });
+
+            document.addEventListener('touchcancel', (e) => {
+                for (let i = 0; i < 2; i++) {
+                    const hand = i === 0 ? 'left' : 'right';
+                    clearTimeout(pinchTimers[hand]);
+                    hands[hand].pinching = false;
+                    hands[hand].active = false;
+                }
+                updateCursors();
+            });
+        }
+
+        // Обновление курсоров
+        function updateCursors() {
+            // Левая рука
+            if (hands.left.active) {
+                leftCursor.style.display = 'block';
+                leftCursor.style.left = hands.left.x + 'px';
+                leftCursor.style.top = hands.left.y + 'px';
+                leftCursor.classList.toggle('pinching', hands.left.pinching);
+                leftDot.classList.add('active');
+            } else {
+                leftCursor.style.display = 'none';
+                leftDot.classList.remove('active');
+            }
+
+            // Правая рука
+            if (hands.right.active) {
+                rightCursor.style.display = 'block';
+                rightCursor.style.left = hands.right.x + 'px';
+                rightCursor.style.top = hands.right.y + 'px';
+                rightCursor.classList.toggle('pinching', hands.right.pinching);
+                rightDot.classList.add('active');
+            } else {
+                rightCursor.style.display = 'none';
+                rightDot.classList.remove('active');
+            }
+
+            // Подсветка элементов под пальцами
+            highlightElementsUnderFingers();
+        }
+
+        // Подсветка элементов под пальцами
+        function highlightElementsUnderFingers() {
+            const elements = document.querySelectorAll('.app-icon, .dock-icon, .widget, .ar-object');
+            elements.forEach(el => el.classList.remove('active'));
+
+            ['left', 'right'].forEach(hand => {
+                if (hands[hand].active) {
+                    const element = document.elementFromPoint(hands[hand].x, hands[hand].y);
+                    if (element && element.closest) {
+                        const clickable = element.closest('.app-icon, .dock-icon, .widget, .ar-object');
+                        if (clickable) {
+                            clickable.classList.add('active');
+                        }
+                    }
+                }
+            });
+        }
+
+        // Управление приложениями
+        function openApp(appName) {
+            if (currentApp === appName) {
+                closeApp(appName);
+                return;
+            }
+            
+            if (currentApp) {
+                closeApp(currentApp);
+            }
+            
+            const window = document.getElementById(`window-${appName}`);
+            if (window) {
+                window.style.display = 'block';
+                currentApp = appName;
+                
+                // Тактильная обратная связь
+                if (window.navigator.vibrate) {
+                    window.navigator.vibrate(10);
+                }
+            }
+        }
+
+        window.closeApp = function(appName) {
+            const window = document.getElementById(`window-${appName}`);
+            if (window) {
+                window.style.display = 'none';
+                if (currentApp === appName) {
+                    currentApp = null;
+                }
+            }
+        };
+
+        // Обновление времени
+        function updateTime() {
+            const now = new Date();
+            const timeString = now.toLocaleTimeString('ru-RU', { 
+                hour: '2-digit', 
+                minute: '2-digit' 
+            });
+            document.getElementById('current-time').textContent = timeString;
+        }
+
+        // Обработка AR объектов
+        function initARObjects() {
+            const arCube = document.getElementById('ar-cube');
+            const arSphere = document.getElementById('ar-sphere');
+
+            function updateARObjects() {
+                if (hands.left.active || hands.right.active) {
+                    // Перемещение AR объектов при взаимодействии
+                    if (hands.left.pinching) {
+                        const element = document.elementFromPoint(hands.left.x, hands.left.y);
+                        if (element && element.classList.contains('ar-object')) {
+                            element.style.left = (hands.left.x - 50) + 'px';
+                            element.style.top = (hands.left.y - 50) + 'px';
+                        }
+                    }
+                    
+                    if (hands.right.pinching) {
+                        const element = document.elementFromPoint(hands.right.x, hands.right.y);
+                        if (element && element.classList.contains('ar-object')) {
+                            element.style.left = (hands.right.x - 50) + 'px';
+                            element.style.top = (hands.right.y - 50) + 'px';
+                        }
+                    }
+                }
+                
+                requestAnimationFrame(updateARObjects);
+            }
+            
+            updateARObjects();
+        }
+
+        // Инициализация всего
+        window.onload = function() {
+            initCamera();
+            initGyroscope();
+            initHandTracking();
+            initPinchDetection();
+            initARObjects();
+            
+            setInterval(updateTime, 1000);
+            updateTime();
+
+            console.log('✅ Apple Vision Pro для iPhone готов!');
+        };
+    </script>
+</body>
+</html>
